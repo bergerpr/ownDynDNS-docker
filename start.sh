@@ -54,6 +54,7 @@ if [ ! -z "$PHP_SESSION_COOKIE_HTTPONLY" ]; then sed -i "s/\;\?\\s\?session.cook
 echo "Installing ownDynDNS..."
 git clone https://github.com/fernwerker/ownDynDNS /tmp/ownDynDNS
 cp -v /tmp/ownDynDNS/*.php /app/public/
+cp -avr /tmp/ownDynDNS/src /app/public/
 chown -R apache:apache /app && chmod -R 755 /app
 
 #Configure ownDynDNS
@@ -61,38 +62,42 @@ echo "Configure ownDynDNS..."
 
 if [ ! -z "$OWNDYNDNS_USERNAME" ];
 	then
-		awk '{gsub(/\$username.*=.*\;/,"$username = \"'$OWNDYNDNS_USERNAME'\";");}1' /app/public/update.php > tmp.php && mv tmp.php /app/public/update.php
+		printf "\nusername=\"$OWNDYNDNS_USERNAME\"\n" >> /app/public/.env
 	else
 		echo "[ERROR] OWNDYNDNS_USERNAME Variable is not defined!"
 fi
 
 if [ ! -z "$OWNDYNDNS_PASSWORD" ];
 	then
-		awk '{gsub(/\$password.*=.*\;/,"$password = \"'$OWNDYNDNS_PASSWORD'\";");}1' /app/public/update.php > tmp.php && mv tmp.php /app/public/update.php
+		printf "password=\"$OWNDYNDNS_PASSWORD\"" >> /app/public/.env
 	else
 		echo "[ERROR] OWNDYNDNS_PASSWORD Variable is not defined!"
 fi
 
 if [ ! -z "$NETCUP_APIKEY" ];
 	then
-		awk '{gsub(/\$apiKey.*=.*\;/,"$apiKey = \"'$NETCUP_APIKEY'\";");}1' /app/public/update.php > tmp.php && mv tmp.php /app/public/update.php
+		printf "\napiKey=\"$NETCUP_APIKEY\"\n" >> /app/public/.env
 	else
 		echo "[ERROR] NETCUP_APIKEY Variable is not defined!"
 fi
 
 if [ ! -z "$NETCUP_APIPASSWORD" ];
 	then
-		awk '{gsub(/\$apiPassword.*=.*\;/,"$apiPassword = \"'$NETCUP_APIPASSWORD'\";");}1' /app/public/update.php > tmp.php && mv tmp.php /app/public/update.php
+		printf "apiPassword=\"$NETCUP_APIPASSWORD\"\n" >> /app/public/.env
 	else
 		echo "[ERROR] NETCUP_APIPASSWORD Variable is not defined!"
 fi
 
 if [ ! -z "$NETCUP_CUSTOMERID" ];
 	then
-		awk '{gsub(/\$customerId.*=.*\;/,"$customerId = \"'$NETCUP_CUSTOMERID'\";");}1' /app/public/update.php > tmp.php && mv tmp.php /app/public/update.php
+		printf "customerId=\"$NETCUP_CUSTOMERID\"\n" >> /app/public/.env
 	else
 		echo "[ERROR] NETCUP_CUSTOMERID Variable is not defined!"
 fi
+
+chmod 755 -Rc $(find /app/public -type d)
+chmod 644 -Rc $(find /app/public -type f)
+chmod 660 -Rc /app/public/.env
 
 #Clean
 rm -f tmp.php

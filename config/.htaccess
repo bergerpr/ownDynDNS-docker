@@ -1,0 +1,11 @@
+Options -Indexes
+# Deny access to filenames starting with dot(.)
+<FilesMatch "^\.">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "log.json">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>

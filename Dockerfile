@@ -1,5 +1,5 @@
 FROM alpine:latest
-MAINTAINER Seji64 <seji@tihoda.de>
+LABEL maintainer="seji@tihoda.de"
 
 # Add basics first
 RUN apk update && apk upgrade
@@ -24,7 +24,7 @@ RUN cp /usr/bin/php7 /usr/bin/php \
     && rm -f /var/cache/apk/*
 
 # Add apache to run and configure
-RUN mkdir /run/apache2 \
+RUN mkdir -p /run/apache2 \
     && sed -i "s/#LoadModule\ rewrite_module/LoadModule\ rewrite_module/" /etc/apache2/httpd.conf \
     && sed -i "s/#LoadModule\ session_module/LoadModule\ session_module/" /etc/apache2/httpd.conf \
     && sed -i "s/#LoadModule\ session_cookie_module/LoadModule\ session_cookie_module/" /etc/apache2/httpd.conf \
@@ -35,8 +35,13 @@ RUN mkdir /run/apache2 \
     && sed -i -r 's@Errorlog .*@Errorlog /dev/stderr@i' /etc/apache2/httpd.conf \
     && printf "\n<Directory \"/app/public\">\n\tAllowOverride All\n</Directory>\n" >> /etc/apache2/httpd.conf
 
-RUN mkdir /tmp/ownDynDNS
-RUN mkdir /app && mkdir /app/public && chown -R apache:apache /app && chmod -R 755 /app && mkdir bootstrap
+RUN mkdir /tmp/ownDynDNS \
+    && mkdir -p /app/public \
+    && chown -R apache:apache /app \
+    && chmod -R 755 /app \
+    && mkdir bootstrap
+COPY ./config/. /app/public
+
 ADD start.sh /bootstrap/
 RUN chmod +x /bootstrap/start.sh
 
