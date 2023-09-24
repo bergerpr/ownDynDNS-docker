@@ -4,23 +4,23 @@ LABEL maintainer="seji@tihoda.de"
 # Add basics first
 RUN apk update && apk upgrade
 RUN apk add \
-    bash \ 
+    bash \
     apache2 \
     openssl \
-    php7-apache2 \
+    php82-apache2 \
     curl \
     ca-certificates \
     git \
-    php7 \
-    php7-soap \
-    php7-mbstring \
-    php7-curl \
-    php7-json \
-    php7-simplexml \
-    php7-openssl \
+    php82 \
+    php82-soap \
+    php82-mbstring \
+    php82-curl \
+    php82-json \
+    php82-simplexml \
+    php82-openssl \
     tzdata
 
-RUN cp /usr/bin/php7 /usr/bin/php \
+RUN cp /usr/bin/php82 /usr/bin/php \
     && rm -f /var/cache/apk/*
 
 # Add apache to run and configure
