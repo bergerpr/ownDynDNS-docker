@@ -1,0 +1,120 @@
+= ownDynDNS Docker Setup
+
+This image provides an Apache/PHP environment pre-configured to run link:https://github.com/fernwerker/ownDynDNS[ownDynDNS] for Netcup.
+
+== Configuration
+
+The application is configured via environment variables.
+
+[cols="3,4,3", options="header"]
+|===
+| Variable | Description | Default / Requirement
+
+| `APACHE_SERVER_NAME`
+| The domain which should be updated. This sets the Apache `ServerName` directive and the domain must be available/resolvable.
+| **Required**
+
+| `OWNDYNDNS_USERNAME`
+| Username used for the generated `.env` file authentication.
+| **Required**
+
+| `OWNDYNDNS_PASSWORD`
+| Password used for the generated `.env` file authentication.
+| **Required**
+
+| `NETCUP_APIKEY`
+| The API Key provided by Netcup.
+| **Required**
+
+| `NETCUP_APIPASSWORD`
+| The API Password provided by Netcup.
+| **Required**
+
+| `NETCUP_CUSTOMERID`
+| The Customer ID provided by Netcup.
+| **Required**
+|===
+
+NOTE: All standard PHP configurations (e.g., `PHP_MEMORY_LIMIT`, `PHP_DATE_TIMEZONE`) are supported but omitted from this table for brevity. They are passed directly to `php.ini`.
+
+=== DNS Configuration Example
+
+Before using the container, ensure your DNS records (e.g., in the Netcup CCP) are set up to accept updates.
+
+[cols="1,1,3", options="header"]
+|===
+| Host | Type | Destination
+
+| `*`
+| `A`
+| _will be updated_
+
+| `@`
+| `A`
+| _will be updated_
+
+| `ftp`
+| `A`
+| _will be updated_
+|===
+
+=== Docker Compose Example
+
+Create a `docker-compose.yml` file with the following content.
+
+.Example with Domain update.ip.example.com
+[source,yaml]
+----
+services:
+  owndyndns:
+    image: bergerpr/owndyndns:latest
+    container_name: owndyndns
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      # --- Application Settings (Required) ---
+      - APACHE_SERVER_NAME=update.ip.example.com
+      - OWNDYNDNS_USERNAME=admin
+      - OWNDYNDNS_PASSWORD=secret_password
+      - NETCUP_APIKEY=12345abcdef
+      - NETCUP_APIPASSWORD=secret_api_pass
+      - NETCUP_CUSTOMERID=123456
+
+      # --- PHP Settings (Optional Examples) ---
+      - PHP_DATE_TIMEZONE=Europe/Berlin
+      - PHP_MEMORY_LIMIT=256M
+----
+
+== Update examples
+
+=== Bash update script
+.Example call with curl to update ftp.example.com Domain
+[source,bash]
+----
+#!/usr/bin/env bash
+USER="test"
+PASS="test"
+DOMAIN="ftp.example.com"
+#DOMAIN="example.com" # with mode "@" or "*" or "both" only use the domain
+SCRIPT="http://update.ip.example.com:8080/update.php"
+FORCE=0
+MODE="" # can be undefined, "@", "*" or "both"
+
+IPV4=$(curl -4 -q v4.ident.me)
+
+PAYLOAD_IPV4="force=${FORCE}&user=${USER}&password=${PASS}&ipv4=${IPV4}&domain=${DOMAIN}&mode=${MODE}"
+curl -X POST --data "${PAYLOAD_IPV4}" ${SCRIPT}
+----
+
+=== FritzBox configuration
+
+.FritzBox `Update-URL`-Parameter
+----
+http://update.ip.example.com:8080/update.php?user=<username>&password=<pass>&ipv4=<ipaddr>&ipv6=<ip6addr>&domain=<domain>
+----
+
+.FritzBox `Update-URL`-Parameter with mode=*
+----
+http://update.ip.example.com:8080/update.php?user=<username>&password=<pass>&ipv4=<ipaddr>&ipv6=<ip6addr>&domain=<domain>&mode=*
+----

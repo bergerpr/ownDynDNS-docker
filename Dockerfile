@@ -1,5 +1,5 @@
 FROM alpine:latest
-LABEL maintainer="seji@tihoda.de"
+LABEL maintainer="support.docker@kehrwoche.eu"
 
 # Add basics first
 RUN apk update && apk upgrade
@@ -7,20 +7,20 @@ RUN apk add \
     bash \
     apache2 \
     openssl \
-    php82-apache2 \
+    php85-apache2 \
     curl \
     ca-certificates \
     git \
-    php82 \
-    php82-soap \
-    php82-mbstring \
-    php82-curl \
-    php82-json \
-    php82-simplexml \
-    php82-openssl \
+    php85 \
+    php85-soap \
+    php85-mbstring \
+    php85-curl \
+    php85-json \
+    php85-simplexml \
+    php85-openssl \
     tzdata
 
-RUN cp /usr/bin/php82 /usr/bin/php \
+RUN cp /usr/bin/php85 /usr/bin/php \
     && rm -f /var/cache/apk/*
 
 # Add apache to run and configure
