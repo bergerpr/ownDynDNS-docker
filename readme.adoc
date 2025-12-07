@@ -93,8 +93,8 @@ services:
 [source,bash]
 ----
 #!/usr/bin/env bash
-USER="test"
-PASS="test"
+USER="admin"
+PASS="secret_password"
 DOMAIN="ftp.example.com"
 #DOMAIN="example.com" # with mode "@" or "*" or "both" only use the domain
 SCRIPT="http://update.ip.example.com:8080/update.php"
