@@ -1,0 +1,12 @@
+# Enforce LF everywhere: in the repository and in every working tree, no matter
+# what the user's core.autocrlf is set to. This is not cosmetic — start.sh is the
+# container entrypoint, and a CRLF checkout turns its shebang into "#!/bin/sh\r",
+# which makes the image fail to start. config/.env is read by parse_ini_file and
+# is copied into the image verbatim.
+* text=auto eol=lf
+
+# Be explicit for the files that end up inside the image.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+.env        text eol=lf
+.htaccess   text eol=lf

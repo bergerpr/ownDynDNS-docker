@@ -42,6 +42,12 @@ RUN mkdir /tmp/ownDynDNS \
     && mkdir bootstrap
 COPY ./config/. /app/public
 
+# Keep a pristine copy of the base configuration. start.sh rebuilds .env from it
+# on every start, so a container restart cannot append the credentials twice.
+# awk normalises line endings and guarantees the trailing newline the appends need.
+RUN sed -i 's/\r$//' /app/public/.env \
+    && awk '{print}' /app/public/.env > /bootstrap/env.base
+
 ADD start.sh /bootstrap/
 RUN chmod +x /bootstrap/start.sh
 
