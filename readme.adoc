@@ -2,6 +2,8 @@
 
 This image provides an Apache/PHP environment pre-configured to run link:https://github.com/fernwerker/ownDynDNS[ownDynDNS] for Netcup.
 
+Source, issues and build workflow: https://github.com/bergerpr/ownDynDNS-docker[bergerpr/ownDynDNS-docker] -- images on Docker Hub: https://hub.docker.com/r/bergerpr/owndyndns[bergerpr/owndyndns].
+
 == Configuration
 
 The application is configured via environment variables.
@@ -12,106 +14,32 @@ The application is configured via environment variables.
 
 | `APACHE_SERVER_NAME`
 | The domain which should be updated. This sets the Apache `ServerName` directive and the domain must be available/resolvable.
-| **Required**
+| *Required*
 
 | `OWNDYNDNS_USERNAME`
 | Username used for the generated `.env` file authentication.
-| **Required**
+| *Required*
 
 | `OWNDYNDNS_PASSWORD`
 | Password used for the generated `.env` file authentication.
-| **Required**
+| *Required*
 
 | `NETCUP_APIKEY`
 | The API Key provided by Netcup.
-| **Required**
+| *Required*
 
 | `NETCUP_APIPASSWORD`
 | The API Password provided by Netcup.
-| **Required**
+| *Required*
 
 | `NETCUP_CUSTOMERID`
 | The Customer ID provided by Netcup.
-| **Required**
+| *Required*
 |===
 
 NOTE: All standard PHP configurations (e.g., `PHP_MEMORY_LIMIT`, `PHP_DATE_TIMEZONE`) are supported but omitted from this table for brevity. They are passed directly to `php.ini`.
 
 NOTE: Secrets may contain any character except line breaks and the sequence `${` (PHP would expand it as a variable). The container refuses to start otherwise.
-
-== Security
-
-* *Use TLS.* Routers send user and password in the URL. Put the container behind a reverse proxy with HTTPS (Traefik, Caddy, nginx, ...) and do not expose port 80 directly to the internet.
-* Only `update.php` is served. The application code, the generated `.env` with the credentials and the log live outside the document root (`/app/owndyndns`, `/app/data`).
-* The access log goes to `docker logs` and records the path only, never the query string, so the passwords do not end up in it.
-* The web server cannot modify the application code or `.env`; it can write only to `/app/data`. Mount a volume there to keep `log.json` across container re-creation.
-* ownDynDNS is fetched at *build time*, never at container start: an image contains exactly one code version and starts without network access to GitHub. The container prints the upstream commit it was built from at startup.
-* There is no rate limiting against password guessing. Use a long random `OWNDYNDNS_PASSWORD` and, if possible, rate limiting or fail2ban on the reverse proxy.
-* Your own `.htaccess` in `/app/public` (e.g. Basic Auth or IP restrictions) is honoured.
-
-== Published images
-
-Images are built automatically by GitHub Actions (`.github/workflows/docker.yml`) and published to Docker Hub as `bergerpr/owndyndns` for `linux/amd64` and `linux/arm64`:
-
-* on every push to `master`,
-* weekly (Monday morning) with the newest Alpine and the newest ownDynDNS,
-* manually via _Actions > Build and publish image > Run workflow_.
-
-Each build is tagged with its date as `JJ.MM.TT` (e.g. `26.11.21`) and as `latest`; it is only published when the smoke test passes. Use a date tag to pin a known version. The image labels record the commit of this repository (`org.opencontainers.image.revision`) and of ownDynDNS (`eu.kehrwoche.owndyndns.upstream.revision`).
-
-== Building
-
-By default every build uses the newest upstream ownDynDNS (`master`) and the newest Alpine (`latest`). Build with `--pull`, so a cached base image does not hold back Alpine updates; the upstream code is checked on every build anyway and only cached while its commit is unchanged.
-
-[source,bash]
-----
-docker build --pull -t owndyndns:<version> .
-----
-
-[cols="2,2,3", options="header"]
-|===
-| Build argument | Default | Purpose
-
-| `OWNDYNDNS_REF`
-| `master`
-| Branch, tag or commit hash of ownDynDNS, e.g. to pin a known-good version.
-
-| `OWNDYNDNS_REPO`
-| `https://github.com/fernwerker/ownDynDNS.git`
-| Upstream repository, e.g. a fork.
-
-| `ALPINE_VERSION`
-| `latest`
-| Alpine base image tag, e.g. `3.24`.
-|===
-
-For automated builds, run `bash smoke-test.sh` before publishing: it builds the image the same way and exits non-zero on any failure. A new Alpine release that no longer ships the `php85` packages makes the build fail there instead of producing a broken image.
-
-== Upgrading from older images
-
-Older images kept the whole application in `/app/public` and downloaded ownDynDNS on every start. Existing `docker-compose.yml` files keep working without changes:
-
-[cols="2,3", options="header"]
-|===
-| Old setup | Behaviour of the new image
-
-| Volume or bind mount on `/app/public`
-| The entry point `update.php` is installed on every start, old application code (`src/`) is removed. Old code from the volume no longer runs.
-
-| `/app/public/.env` (mounted or left in a volume)
-| Its `debug`, `log` and `logFile` settings are still used. Credentials always come from the environment variables; they are removed from that file on start.
-
-| `/app/public/log.json` (mounted or left in a volume)
-| Still used as log file. New setups should mount a volume at `/app/data` instead.
-|===
-
-Intentional changes you may notice:
-
-* `debug` is `false` by default, so the update response no longer contains `[DEBUG]` lines. Set `debug=true` in a mounted `/app/public/.env` to get them back.
-* The access log goes to `docker logs` instead of `/var/log/apache2/access.log`, and without query string and referer.
-* Requests for anything but `update.php` are answered with 403 (previously partly 404).
-* Updates of ownDynDNS arrive with a new image, no longer automatically on container start.
-* Secrets must not contain line breaks or the sequence `${`; the container refuses to start otherwise. (Such secrets never worked with older images either.)
 
 === DNS Configuration Example
 
@@ -194,3 +122,77 @@ https://update.ip.example.com/update.php?user=<username>&password=<pass>&ipv4=<i
 ----
 https://update.ip.example.com/update.php?user=<username>&password=<pass>&ipv4=<ipaddr>&ipv6=<ip6addr>&domain=<domain>&mode=*
 ----
+
+== Security
+
+* *Use TLS.* Routers send user and password in the URL. Put the container behind a reverse proxy with HTTPS (Traefik, Caddy, nginx, ...) and do not expose port 80 directly to the internet.
+* Only `update.php` is served. The application code, the generated `.env` with the credentials and the log live outside the document root (`/app/owndyndns`, `/app/data`).
+* The access log goes to `docker logs` and records the path only, never the query string, so the passwords do not end up in it.
+* The web server cannot modify the application code or `.env`; it can write only to `/app/data`. Mount a volume there to keep `log.json` across container re-creation.
+* ownDynDNS is fetched at *build time*, never at container start: an image contains exactly one code version and starts without network access to GitHub. The container prints the upstream commit it was built from at startup.
+* There is no rate limiting against password guessing. Use a long random `OWNDYNDNS_PASSWORD` and, if possible, rate limiting or fail2ban on the reverse proxy.
+* Your own `.htaccess` in `/app/public` (e.g. Basic Auth or IP restrictions) is honoured.
+
+== Published images
+
+Images are built automatically by GitHub Actions (`.github/workflows/docker.yml`) and published to Docker Hub as `bergerpr/owndyndns` for `linux/amd64` and `linux/arm64`:
+
+* on every push to `master`,
+* weekly (Monday morning) with the newest Alpine and the newest ownDynDNS,
+* manually via _Actions > Build and publish image > Run workflow_.
+
+Each build is tagged with its date as `JJ.MM.TT` (e.g. `26.11.21`) and as `latest`; it is only published when the smoke test passes. Use a date tag to pin a known version. This description on Docker Hub is generated from `readme.adoc` on every push to `master`. The image labels record the commit of this repository (`org.opencontainers.image.revision`) and of ownDynDNS (`eu.kehrwoche.owndyndns.upstream.revision`).
+
+== Building
+
+By default every build uses the newest upstream ownDynDNS (`master`) and the newest Alpine (`latest`). Build with `--pull`, so a cached base image does not hold back Alpine updates; the upstream code is checked on every build anyway and only cached while its commit is unchanged.
+
+[source,bash]
+----
+docker build --pull -t owndyndns:<version> .
+----
+
+[cols="2,2,3", options="header"]
+|===
+| Build argument | Default | Purpose
+
+| `OWNDYNDNS_REF`
+| `master`
+| Branch, tag or commit hash of ownDynDNS, e.g. to pin a known-good version.
+
+| `OWNDYNDNS_REPO`
+| `https://github.com/fernwerker/ownDynDNS.git`
+| Upstream repository, e.g. a fork.
+
+| `ALPINE_VERSION`
+| `latest`
+| Alpine base image tag, e.g. `3.24`.
+|===
+
+For automated builds, run `bash smoke-test.sh` before publishing: it builds the image the same way and exits non-zero on any failure. A new Alpine release that no longer ships the `php85` packages makes the build fail there instead of producing a broken image.
+
+== Upgrading from older images
+
+Older images kept the whole application in `/app/public` and downloaded ownDynDNS on every start. Existing `docker-compose.yml` files keep working without changes:
+
+[cols="2,3", options="header"]
+|===
+| Old setup | Behaviour of the new image
+
+| Volume or bind mount on `/app/public`
+| The entry point `update.php` is installed on every start, old application code (`src/`) is removed. Old code from the volume no longer runs.
+
+| `/app/public/.env` (mounted or left in a volume)
+| Its `debug`, `log` and `logFile` settings are still used. Credentials always come from the environment variables; they are removed from that file on start.
+
+| `/app/public/log.json` (mounted or left in a volume)
+| Still used as log file. New setups should mount a volume at `/app/data` instead.
+|===
+
+Intentional changes you may notice:
+
+* `debug` is `false` by default, so the update response no longer contains `[DEBUG]` lines. Set `debug=true` in a mounted `/app/public/.env` to get them back.
+* The access log goes to `docker logs` instead of `/var/log/apache2/access.log`, and without query string and referer.
+* Requests for anything but `update.php` are answered with 403 (previously partly 404).
+* Updates of ownDynDNS arrive with a new image, no longer automatically on container start.
+* Secrets must not contain line breaks or the sequence `${`; the container refuses to start otherwise. (Such secrets never worked with older images either.)

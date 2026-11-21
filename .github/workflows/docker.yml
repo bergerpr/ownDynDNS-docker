@@ -6,6 +6,9 @@ name: Build and publish image
 # Required repository settings (Settings > Secrets and variables > Actions):
 #   secret   DOCKERHUB_TOKEN     Docker Hub access token, scope "Read & Write"
 #   variable DOCKERHUB_USERNAME  Docker Hub user name
+#   secret   DOCKERHUB_DESCRIPTION_TOKEN  (optional) access token with scope
+#            "Read, Write, Delete" -- Docker Hub requires it for changing the
+#            repository description. Without it the description job is skipped.
 
 on:
   push:
@@ -103,3 +106,38 @@ jobs:
         run: |
           docker run --rm --platform linux/arm64 --entrypoint php "$IMAGE:${{ steps.meta.outputs.version }}" \
             -r 'echo PHP_VERSION, " ", php_uname("m"), PHP_EOL; exit((int)!extension_loaded("soap"));'
+
+  # Keeps the Docker Hub description in sync with readme.adoc. Docker Hub only
+  # renders Markdown, so the README is converted with downdoc first.
+  dockerhub-description:
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HAS_TOKEN: ${{ secrets.DOCKERHUB_DESCRIPTION_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Convert readme.adoc to Markdown
+        run: |
+          npx --yes downdoc@1.1.0-stable readme.adoc -o README.dockerhub.md
+          size=$(wc -c < README.dockerhub.md)
+          echo "README.dockerhub.md: $size bytes"
+          # Docker Hub limit for the full description.
+          [ "$size" -le 25000 ] || { echo "::error::description has $size bytes, Docker Hub allows 25000"; exit 1; }
+
+      - name: Update Docker Hub description
+        if: env.HAS_TOKEN == 'true'
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_DESCRIPTION_TOKEN }}
+          repository: ${{ env.IMAGE }}
+          short-description: "Hardened ownDynDNS for Netcup: dynamic DNS for FritzBox & co. Rebuilt weekly, amd64/arm64."
+          readme-filepath: ./README.dockerhub.md
+
+      - name: Token missing
+        if: env.HAS_TOKEN != 'true'
+        run: echo "::warning::DOCKERHUB_DESCRIPTION_TOKEN is not set, Docker Hub description not updated"
