@@ -49,6 +49,16 @@ NOTE: Secrets may contain any character except line breaks and the sequence `${`
 * There is no rate limiting against password guessing. Use a long random `OWNDYNDNS_PASSWORD` and, if possible, rate limiting or fail2ban on the reverse proxy.
 * Your own `.htaccess` in `/app/public` (e.g. Basic Auth or IP restrictions) is honoured.
 
+== Published images
+
+Images are built automatically by GitHub Actions (`.github/workflows/docker.yml`) and published to Docker Hub as `bergerpr/owndyndns` for `linux/amd64` and `linux/arm64`:
+
+* on every push to `master`,
+* weekly (Monday morning) with the newest Alpine and the newest ownDynDNS,
+* manually via _Actions > Build and publish image > Run workflow_.
+
+Each build is tagged with its date as `JJ.MM.TT` (e.g. `26.11.21`) and as `latest`; it is only published when the smoke test passes. Use a date tag to pin a known version. The image labels record the commit of this repository (`org.opencontainers.image.revision`) and of ownDynDNS (`eu.kehrwoche.owndyndns.upstream.revision`).
+
 == Building
 
 By default every build uses the newest upstream ownDynDNS (`master`) and the newest Alpine (`latest`). Build with `--pull`, so a cached base image does not hold back Alpine updates; the upstream code is checked on every build anyway and only cached while its commit is unchanged.
