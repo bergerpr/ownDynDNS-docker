@@ -37,6 +37,72 @@ The application is configured via environment variables.
 
 NOTE: All standard PHP configurations (e.g., `PHP_MEMORY_LIMIT`, `PHP_DATE_TIMEZONE`) are supported but omitted from this table for brevity. They are passed directly to `php.ini`.
 
+NOTE: Secrets may contain any character except line breaks and the sequence `${` (PHP would expand it as a variable). The container refuses to start otherwise.
+
+== Security
+
+* *Use TLS.* Routers send user and password in the URL. Put the container behind a reverse proxy with HTTPS (Traefik, Caddy, nginx, ...) and do not expose port 80 directly to the internet.
+* Only `update.php` is served. The application code, the generated `.env` with the credentials and the log live outside the document root (`/app/owndyndns`, `/app/data`).
+* The access log goes to `docker logs` and records the path only, never the query string, so the passwords do not end up in it.
+* The web server cannot modify the application code or `.env`; it can write only to `/app/data`. Mount a volume there to keep `log.json` across container re-creation.
+* ownDynDNS is fetched at *build time*, never at container start: an image contains exactly one code version and starts without network access to GitHub. The container prints the upstream commit it was built from at startup.
+* There is no rate limiting against password guessing. Use a long random `OWNDYNDNS_PASSWORD` and, if possible, rate limiting or fail2ban on the reverse proxy.
+* Your own `.htaccess` in `/app/public` (e.g. Basic Auth or IP restrictions) is honoured.
+
+== Building
+
+By default every build uses the newest upstream ownDynDNS (`master`) and the newest Alpine (`latest`). Build with `--pull`, so a cached base image does not hold back Alpine updates; the upstream code is checked on every build anyway and only cached while its commit is unchanged.
+
+[source,bash]
+----
+docker build --pull -t owndyndns:<version> .
+----
+
+[cols="2,2,3", options="header"]
+|===
+| Build argument | Default | Purpose
+
+| `OWNDYNDNS_REF`
+| `master`
+| Branch, tag or commit hash of ownDynDNS, e.g. to pin a known-good version.
+
+| `OWNDYNDNS_REPO`
+| `https://github.com/fernwerker/ownDynDNS.git`
+| Upstream repository, e.g. a fork.
+
+| `ALPINE_VERSION`
+| `latest`
+| Alpine base image tag, e.g. `3.24`.
+|===
+
+For automated builds, run `bash smoke-test.sh` before publishing: it builds the image the same way and exits non-zero on any failure. A new Alpine release that no longer ships the `php85` packages makes the build fail there instead of producing a broken image.
+
+== Upgrading from older images
+
+Older images kept the whole application in `/app/public` and downloaded ownDynDNS on every start. Existing `docker-compose.yml` files keep working without changes:
+
+[cols="2,3", options="header"]
+|===
+| Old setup | Behaviour of the new image
+
+| Volume or bind mount on `/app/public`
+| The entry point `update.php` is installed on every start, old application code (`src/`) is removed. Old code from the volume no longer runs.
+
+| `/app/public/.env` (mounted or left in a volume)
+| Its `debug`, `log` and `logFile` settings are still used. Credentials always come from the environment variables; they are removed from that file on start.
+
+| `/app/public/log.json` (mounted or left in a volume)
+| Still used as log file. New setups should mount a volume at `/app/data` instead.
+|===
+
+Intentional changes you may notice:
+
+* `debug` is `false` by default, so the update response no longer contains `[DEBUG]` lines. Set `debug=true` in a mounted `/app/public/.env` to get them back.
+* The access log goes to `docker logs` instead of `/var/log/apache2/access.log`, and without query string and referer.
+* Requests for anything but `update.php` are answered with 403 (previously partly 404).
+* Updates of ownDynDNS arrive with a new image, no longer automatically on container start.
+* Secrets must not contain line breaks or the sequence `${`; the container refuses to start otherwise. (Such secrets never worked with older images either.)
+
 === DNS Configuration Example
 
 Before using the container, ensure your DNS records (e.g., in the Netcup CCP) are set up to accept updates.
@@ -97,7 +163,7 @@ USER="admin"
 PASS="secret_password"
 DOMAIN="ftp.example.com"
 #DOMAIN="example.com" # with mode "@" or "*" or "both" only use the domain
-SCRIPT="http://update.ip.example.com:8080/update.php"
+SCRIPT="https://update.ip.example.com/update.php"
 FORCE=0
 MODE="" # can be undefined, "@", "*" or "both"
 
@@ -111,10 +177,10 @@ curl -X POST --data "${PAYLOAD_IPV4}" ${SCRIPT}
 
 .FritzBox `Update-URL`-Parameter
 ----
-http://update.ip.example.com:8080/update.php?user=<username>&password=<pass>&ipv4=<ipaddr>&ipv6=<ip6addr>&domain=<domain>
+https://update.ip.example.com/update.php?user=<username>&password=<pass>&ipv4=<ipaddr>&ipv6=<ip6addr>&domain=<domain>
 ----
 
 .FritzBox `Update-URL`-Parameter with mode=*
 ----
-http://update.ip.example.com:8080/update.php?user=<username>&password=<pass>&ipv4=<ipaddr>&ipv6=<ip6addr>&domain=<domain>&mode=*
+https://update.ip.example.com/update.php?user=<username>&password=<pass>&ipv4=<ipaddr>&ipv6=<ip6addr>&domain=<domain>&mode=*
 ----
